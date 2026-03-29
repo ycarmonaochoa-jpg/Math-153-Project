@@ -1,0 +1,17 @@
+---
+title: "Math 153 Project Proposal"
+author: "Yatziri I. Carmona Ochoa & Alessandra Ela"
+format: pdf
+editor: visual
+---
+
+## Project Proposal
+
+```{r}
+library(readr)
+diabetic_data <- read.csv("diabetic_data.csv")
+View(diabetic_data)
+CDC_diabetes_data <- read.csv("diabetes_012_health_indicators_BRFSS2015.csv")
+View(CDC_diabetes_data)
+pima_diabetes_data <- read.csv("diabetes")
+```
