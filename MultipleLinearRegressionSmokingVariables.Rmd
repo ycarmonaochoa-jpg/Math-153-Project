@@ -1,0 +1,70 @@
+---
+title: "Multiple Linear Regression Smoking Variables"
+author: "Alessandra"
+date: "2026-04-06"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(UsingR)
+library(Bolstad)
+babies_df <- babies
+babies_df
+```
+
+```{r}
+babies_df = subset(babies_df, wt != 999 & parity != 99 & race != 99 & age != 99 & ed != 9 & ht != 99 & wt1 != 999 & drace != 99 & dage != 99 & ded != 9 & dht != 99 & dwt != 999 & inc != 99 & smoke != 9 & time != 99 & time != 98 & number != 99 & number != 98)
+```
+
+```{r}
+pairs(babies_df, upper.panel = panel.smooth)
+```
+
+```{r}
+#modeling the smoking variables: birth weight, smoke, time, and number
+b0 = rep(0, 4)
+V0 = 1e4 * diag(rep(1, 4))
+fit = bayes.lm(wt ~ smoke + time + number, data = babies_df, prior = list(b0 = b0, V0 = V0))
+```
+```{r}
+#extracting mean and variance
+b1 = fit$post.mean
+V1 = fit$post.var
+```
+
+```{r}
+V1_extracted <- V1[-1, -1] #taking out intercept row and column
+V1_extracted
+
+b1_reduced <- b1[-1] #taking out intercept value
+```
+
+```{r}
+summary(fit)
+```
+
+```{r}
+#Now I need to do the matrix multiplication thing
+```
+
+```{r}
+first <- t(b1_reduced) %*% solve(V1_extracted) %*% b1_reduced
+first
+```
+
+
+#Now I need to compare 38.71331 with the chi-square value
+We will use the value 7.815 
+
+
+
+
+
+
+
+
