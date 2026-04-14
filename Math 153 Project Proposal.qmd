@@ -43,5 +43,5 @@ Expanded baby dataset:
 
 ```{r}
 library(UsingR)
-babies
+babies_tbl_df
 ```

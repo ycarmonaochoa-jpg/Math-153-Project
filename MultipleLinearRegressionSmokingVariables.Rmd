@@ -1,6 +1,6 @@
 ---
 title: "Multiple Linear Regression Smoking Variables"
-author: "Alessandra"
+author: "Alessandra Ela"
 date: "2026-04-06"
 output: pdf_document
 ---
