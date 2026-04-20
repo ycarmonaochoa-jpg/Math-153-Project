@@ -1,0 +1,117 @@
+---
+title: "Prior Sensitivity Analysis"
+date: "2026-04-15"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Setup
+
+```{r}
+library(UsingR)
+library(Bolstad)
+babies_df <- babies
+```
+
+```{r}
+# Remove all observations with missing or unknown values
+babies_df = subset(babies_df, wt != 999 & parity != 99 & race != 99 & age != 99 &
+                     ed != 9 & ht != 99 & wt1 != 999 & drace != 99 & dage != 99 &
+                     ded != 9 & dht != 99 & dwt != 999 & inc != 99 & smoke != 9 &
+                     time != 99 & time != 98 & number != 99 & number != 98)
+```
+
+
+## Model
+
+We extend the smoking-only model to include all biologically relevant maternal
+predictors: gestation period, mother's height, mother's pre-pregnancy weight,
+number of cigarettes smoked per day, parity, and maternal age. Each variable
+has a clear physiological motivation:
+
+- gestation: longer pregnancies allow more time for fetal growth
+- ht: taller mothers tend to have larger babies
+- wt1: heavier mothers tend to have heavier babies
+- number: greater cigarette consumption is associated with lower birth weight
+- parity: first-born babies tend to be slightly lighter
+- age: maternal age may have a modest effect on birth weight
+
+The model is:
+
+  wt ~ gestation + ht + wt1 + number + parity + age
+
+There are 7 coefficients in total (including the intercept).
+
+
+## Prior Sensitivity Analysis
+
+We fit the same model under four different normal prior specifications,
+holding the prior mean fixed at zero throughout. The four priors vary along
+two dimensions: the scale of the variance (diffuse vs. informative) and
+whether the variance is applied uniformly or asymmetrically across predictors.
+
+Prior 1 -- Diffuse (1e4 * I): our baseline, encodes minimal prior knowledge.
+Prior 2 -- Moderate (10 * I): mild regularization toward zero.
+Prior 3 -- Strong (1 * I): strong shrinkage, assumes coefficients are small.
+Prior 4 -- Asymmetric: diffuse on most predictors but tighter on age and
+           parity, reflecting the prior belief that these variables have
+           weaker and more bounded effects on birth weight than gestation
+           or smoking.
+
+```{r}
+# Prior mean: no prior belief that any variable has a nonzero effect
+b0_full = rep(0, 7)
+
+# Prior 1: Diffuse (baseline)
+V0_diffuse = 1e4 * diag(rep(1, 7))
+
+# Prior 2: Moderate
+V0_moderate = 10 * diag(rep(1, 7))
+
+# Prior 3: Strong
+V0_strong = 1 * diag(rep(1, 7))
+
+# Prior 4: Asymmetric
+# Intercept, gestation, ht, wt1, number: diffuse
+# parity, age: tighter (prior belief that effects are modest)
+V0_asym = diag(c(1e4, 1e4, 1e4, 1e4, 1e4, 1, 1))
+```
+
+```{r}
+fit_diffuse  = bayes.lm(wt ~ gestation + ht + wt1 + number + parity + age,
+                        data  = babies_df,
+                        prior = list(b0 = b0_full, V0 = V0_diffuse))
+
+fit_moderate = bayes.lm(wt ~ gestation + ht + wt1 + number + parity + age,
+                        data  = babies_df,
+                        prior = list(b0 = b0_full, V0 = V0_moderate))
+
+fit_strong   = bayes.lm(wt ~ gestation + ht + wt1 + number + parity + age,
+                        data  = babies_df,
+                        prior = list(b0 = b0_full, V0 = V0_strong))
+
+fit_asym     = bayes.lm(wt ~ gestation + ht + wt1 + number + parity + age,
+                        data  = babies_df,
+                        prior = list(b0 = b0_full, V0 = V0_asym))
+```
+
+
+## Posterior Summaries
+
+```{r}
+cat("--- Prior 1: Diffuse (1e4 * I) ---\n")
+summary(fit_diffuse)
+
+cat("--- Prior 2: Moderate (10 * I) ---\n")
+summary(fit_moderate)
+
+cat("--- Prior 3: Strong (1 * I) ---\n")
+summary(fit_strong)
+
+cat("--- Prior 4: Asymmetric ---\n")
+summary(fit_asym)
+```
