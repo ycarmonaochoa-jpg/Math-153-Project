@@ -1,0 +1,274 @@
+---
+title: "Prior Sensitivity Analysis"
+date: "2026-04-24"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup
+
+```{r}
+library(UsingR)
+library(Bolstad)
+babies_df <- babies
+```
+
+```{r}
+# Remove all observations with missing or unknown values
+babies_df = subset(babies_df, wt != 999 & parity != 99 & race != 99 & age != 99 &
+                     ed != 9 & ht != 99 & wt1 != 999 & drace != 99 & dage != 99 &
+                     ded != 9 & dht != 99 & dwt != 999 & inc != 99 & smoke != 9 &
+                     time != 99 & time != 98 & number != 99 & number != 98)
+```
+
+## Model
+
+We fit a multiple linear regression of birth weight (oz) on six maternal predictors:
+
+- gestation (days): longer pregnancies produce heavier babies
+- ht (inches): taller mothers tend to have larger babies
+- wt1 (lbs): heavier pre-pregnancy mothers tend to have heavier babies
+- number: ordinal measure of cigarettes smoked per day (0=never, ..., 8=60+)
+- parity: 0 = first birth, 1 = previous birth(s)
+- age (years): maternal age at delivery
+
+```
+wt ~ gestation + ht + wt1 + number + parity + age
+```
+
+There are 7 coefficients total (including intercept).
+
+## Prior Specifications
+
+We compare four normal prior specifications. The prior mean b0 encodes our
+expectation about the direction and rough magnitude of each effect before
+seeing the data. The prior variance V0 encodes our uncertainty about those
+expectations. We use three prior mean vectors:
+
+**Prior 1 -- Diffuse, zero mean (baseline)**
+No prior knowledge assumed. Mean of zero on all coefficients, very large
+variance. This is the same prior structure used in the smoking-only model.
+
+**Prior 2 -- Diffuse, zero mean, moderate variance**
+Same zero-mean assumption but variance scaled down to 10 * I. This provides
+mild regularization without encoding any directional beliefs.
+
+**Prior 3 -- Informative, research-backed means, diffuse variance**
+Prior means are derived from published literature on each predictor's
+relationship with birth weight. Variance remains diffuse so the data can
+still move the posterior substantially. This prior asks: if we encode
+what existing research suggests about the direction and rough magnitude
+of each effect, do our posteriors change?
+
+Prior mean derivations from literature review:
+- Intercept: set to 0 (absorbed into diffuse variance)
+- gestation: Oken et al. (2003) report median birth weight increments of
+  ~140g per gestational week from a US national reference sample, independent
+  of the CHDS. Converting to oz/day: 140g / 28.35g/oz / 7 days ~= 0.70 oz/day.
+  We use 0.7. Source: Oken et al. (2003). BMC Pediatrics, 3:6. doi:10.1186/1471-2431-3-6
+- ht: consistent positive association across studies; a 5cm increase in
+  maternal height is associated with increases in newborn size (Polzlberger
+  et al., 2016; Thame et al., 2004). We encode a weak positive prior of
+  1.0 oz/inch.
+- wt1: positive association well-established (Polzlberger et al., 2016).
+  We encode a small positive prior of 0.05 oz/lb.
+- number: OLS estimates from multiple studies find each additional cigarette
+  reduces birth weight by 8-15g (Juarez & Merlo, 2013). The `number`
+  variable is ordinal with each step representing ~5 more cigarettes.
+  Converting: 10g x 5 / 28.35 ~= -1.76 oz per category step. We use -1.5.
+  Source: Juarez S, Merlo J (2013); Perreira et al. (2017)
+- parity: first births are on average 115-138g lighter than subsequent
+  births (Wilcox et al., 1996; Bohn et al., 2021). Converting: 115g /
+  28.35 ~= 4 oz. Since parity = 1 means prior birth (i.e. NOT first birth),
+  the coefficient should be positive. We use 4.0.
+  Source: Bohn et al. (2021); Magnus et al. (1994)
+- age: modest positive effect up to early 30s (Stein et al., 1989).
+  We encode a small positive prior of 0.1 oz/year.
+  Source: Stein Z et al. (1989)
+
+**Prior 4 -- Informative means, tighter variance on weaker predictors**
+Same research-backed means as Prior 3, but variance is tightened on all of them
+(variance = 10 rather than 1e4).
+
+```{r}
+# --- Prior means ---
+
+# Prior 1 & 2: zero mean (no prior belief)
+b0_zero = rep(0, 7)
+
+# Prior 3 & 4: research-backed means
+# Order: intercept, gestation, ht, wt1, number, parity, age
+b0_informed = c(0,     # intercept: no prior
+                0.7,   # gestation: ~0.7 oz/day (143g/week converted)
+                1.0,   # ht: positive, ~1 oz/inch
+                0.05,  # wt1: small positive, ~0.05 oz/lb
+                -1.5,  # number: negative, ~-1.5 oz per category step
+                4.0,   # parity: positive, ~4 oz for non-first birth
+                0.1)   # age: small positive, ~0.1 oz/year
+
+# --- Prior variances ---
+
+# Prior 1: Diffuse (baseline)
+V0_diffuse = 1e4 * diag(rep(1, 7))
+
+# Prior 2: Moderate zero-mean
+V0_moderate = diag(c(10, 10, 10, 10, 10, 10, 10))
+
+# Prior 3: Diffuse variance, informed means
+V0_diffuse_informed = 1e4 * diag(rep(1, 7))
+
+# Prior 4: Informed means, tighter variance on all of them
+# Order: intercept, gestation, ht, wt1, number, parity, age
+V0_tight_weak = diag(c(10,   # intercept: diffuse
+                        10,   # gestation: diffuse (strong signal)
+                        10,   # ht: diffuse
+                        10,   # wt1: diffuse
+                        10,   # number: diffuse (strong signal)
+                        10,     # parity: tighter (effect well-bounded ~4 oz)
+                        10))    # age: tighter (effect small and well-bounded)
+```
+
+```{r}
+fit1 = bayes.lm(wt ~ gestation + ht + wt1 + number + parity + age,
+                data   = babies_df,
+                center = FALSE,
+                prior  = list(b0 = b0_zero,     V0 = V0_diffuse))
+
+fit2 = bayes.lm(wt ~ gestation + ht + wt1 + number + parity + age,
+                data   = babies_df,
+                center = FALSE,
+                prior  = list(b0 = b0_zero,     V0 = V0_moderate))
+
+fit3 = bayes.lm(wt ~ gestation + ht + wt1 + number + parity + age,
+                data   = babies_df,
+                center = FALSE,
+                prior  = list(b0 = b0_informed, V0 = V0_diffuse_informed))
+
+fit4 = bayes.lm(wt ~ gestation + ht + wt1 + number + parity + age,
+                data   = babies_df,
+                center = FALSE,
+                prior  = list(b0 = b0_informed, V0 = V0_tight_weak))
+
+# bayes.lm strips names from coefficients via as.vector(); restore them
+coef_names = c("(Intercept)", "gestation", "ht", "wt1", "number", "parity", "age")
+names(fit1$coefficients) = coef_names
+names(fit2$coefficients) = coef_names
+names(fit3$coefficients) = coef_names
+names(fit4$coefficients) = coef_names
+```
+
+## Posterior Summaries
+
+```{r}
+cat("=== Prior 1: Diffuse zero-mean (baseline) ===\n")
+summary(fit1)
+
+cat("\n=== Prior 2: Moderate zero-mean ===\n")
+summary(fit2)
+
+cat("\n=== Prior 3: Informed means, diffuse variance ===\n")
+summary(fit3)
+
+cat("\n=== Prior 4: Informed means, tight variance on age/parity ===\n")
+summary(fit4)
+```
+
+## Comparison Table
+
+```{r}
+means1 = fit1$coefficients
+means2 = fit2$coefficients
+means3 = fit3$coefficients
+means4 = fit4$coefficients
+
+comparison = data.frame(
+  Term          = names(means1),
+  Prior_Mean    = round(b0_informed, 3),
+  Post_Diffuse  = round(as.numeric(means1), 3),
+  Post_Moderate = round(as.numeric(means2), 3),
+  Post_Informed = round(as.numeric(means3), 3),
+  Post_Tight    = round(as.numeric(means4), 3)
+)
+
+# Add a column showing direction match with prior
+comparison$Dir_Match = ifelse(
+  sign(comparison$Prior_Mean) == 0 | 
+  sign(comparison$Post_Diffuse) == sign(comparison$Prior_Mean),
+  "Yes", "No"
+)
+
+print(comparison)
+```
+
+## Visualization
+
+```{r fig.height=6, fig.width=10}
+terms = names(means1)[-1]  # exclude intercept
+
+prior_labels = c("Diffuse\n(zero mean)",
+                 "Moderate\n(zero mean)",
+                 "Informed\n(diffuse var)",
+                 "Informed\n(tight var)")
+
+cols = c("#4472C4", "#ED7D31", "#A9D18E", "#FF0000")
+
+par(mfrow = c(2, 3), mar = c(5, 4, 3, 1))
+
+for (term in terms) {
+  idx = which(names(means1) == term)
+  vals = c(means1[idx], means2[idx], means3[idx], means4[idx])
+  prior_val = b0_informed[idx]
+
+  bp = barplot(
+    height    = vals,
+    names.arg = prior_labels,
+    main      = term,
+    ylab      = "Posterior Mean",
+    col       = cols,
+    cex.names = 0.7,
+    las       = 2,
+    ylim      = range(c(vals, prior_val, 0)) * 1.3
+  )
+  abline(h = 0, lty = 2, col = "gray40")
+  # Mark the research-based prior mean as a reference line
+  abline(h = prior_val, lty = 3, col = "darkgreen", lwd = 2)
+}
+
+
+legend("center",
+       legend = c(prior_labels, "Research prior mean"),
+       fill   = c(cols, NA),
+       lty    = c(NA, NA, NA, NA, 3),
+       lwd    = c(NA, NA, NA, NA, 2),
+       col    = c(rep("black", 4), "darkgreen"),
+       bty    = "n",
+       cex    = 0.9)
+```
+
+## Credible Region Test
+
+We test H0: all slope coefficients = 0 vs H1: at least one != 0.
+With 6 slope coefficients, the chi-square critical value at alpha=0.025
+is 14.449.
+
+```{r}
+run_cr_test = function(fit, label) {
+  b1 = fit$coefficients[-1]
+  V1 = fit$post.var[-1, -1]
+  cr = as.numeric(t(b1) %*% solve(V1) %*% b1)
+  cat(label, "-> test statistic =", round(cr, 4))
+  if (cr > 14.449) {
+    cat("  (reject H0)\n")
+  } else {
+    cat("  (fail to reject H0)\n")
+  }
+}
+
+run_cr_test(fit1, "Prior 1: Diffuse zero-mean     ")
+run_cr_test(fit2, "Prior 2: Moderate zero-mean    ")
+run_cr_test(fit3, "Prior 3: Informed means, diffuse")
+run_cr_test(fit4, "Prior 4: Informed means, tight ")
+```
