@@ -1,0 +1,70 @@
+---
+title: "Math153LogisticRegressionModel"
+author: "Alessandra"
+date: "2026-04-22"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(UsingR)
+library(bayesreg)
+library(dplyr)
+```
+
+```{r}
+#loading full dataset
+babies_df <- babies
+view(babies_df)
+```
+
+```{r}
+#cleaning the data
+babies_df = subset(babies_df, wt != 999 & parity != 99 & race != 99 & age != 99 & ed != 9 & ht != 99 & wt1 != 999 & drace != 99 & dage != 99 & ded != 9 & dht != 99 & dwt != 999 & inc != 99 & smoke != 9 & time != 99 & time != 98 & number != 99 & number != 98)
+```
+
+```{r}
+#variable selection using a LASSO algorithm
+lasso <- bayesreg(wt~gestation + sex + parity + race + age + ed + ht + wt1 + drace + dage + ded + dht + dwt + marital + inc + smoke + time + number, babies_df, model = "gaussian", prior = "lasso", n.samples = 1e3)
+
+
+```
+
+```{r}
+lasso <- bayesreg(wt~gestation + parity + race + age + ed + ht + wt1 + drace + dage + ded + dht + dwt + marital + inc + smoke + time + number, babies_df, model = "gaussian", prior = "lasso", n.samples = 1e3)
+summary(lasso)
+```
+
+The significant variables were number, ht, and race. Now I fill a logistic regression model to these variables.
+
+***Logistic Model***
+
+```{r}
+library(Bolstad2)
+```
+
+
+```{r}
+#do a logistic model here for the project
+#with the number, height, and race parameters (race, ht, number)
+
+#making a matrix of the number, height, and race parameters
+babies_reduced3 <- babies %>%
+  select(wt, race, ht, number)
+babies_reduced3
+babies_reduced3_matrix <- data.matrix(babies_reduced3)
+```
+```{r}
+log <- BayesLogistic(babies_reduced3_matrix[, 1], babies_reduced3_matrix[, -1])
+```
+
+```{r}
+#with the gestation, ht, wt1, number, parity, age parameters
+
+#making a matrix of the gestation, ht, wt1, number, parity, age parameters
+
+
+```
