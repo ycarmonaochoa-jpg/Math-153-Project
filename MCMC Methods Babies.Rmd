@@ -198,10 +198,18 @@ ggplot(subset(babies_clean, !is.na(edu_group)), aes(x = edu_group)) +
 ```{r}
 library(MCMCpack)
 
+babies_clean$cigs_cat <- babies_clean$number
+
+#remove unknowns
+babies_clean$cigs_cat[babies_clean$cigs_cat %in% c(9, 98, 99)] <- NA
+
+#convert to factor
+babies_clean$cigs_cat <- factor(babies_clean$cigs_cat)
+
 #linear regression
 model <- MCMCregress(
-  wt ~ gestation + age + ht + wt1 + smoke + race + parity,
-  data = babies,
+  wt ~ gestation + ht + wt1 + number + parity + age,
+  data = babies_clean,
   burnin = 2000,
   mcmc = 10000,
   thin = 5
@@ -220,18 +228,12 @@ densplot(model)
 #ridgeline plot
 m <- as.matrix(model)
 
-df <- data.frame(
-  gestation = m[, "gestation"],
-  age = m[, "age"],
-  ht = m[, "ht"],
-  wt1 = m[, "wt1"],
-  smoke = m[, "smoke"],
-  race = m[, "race"],
-  parity = m[, "parity"]
-)
-
+#convert all of coefficients to dataframe
+df <- as.data.frame(m)
+df <- df[, !colnames(df) %in% "sigma2"]
 df_long <- melt(df)
 
+#plot
 ggplot(df_long, aes(x = value, y = variable, fill = variable)) +
   geom_density_ridges(alpha = 0.6) +
   geom_vline(xintercept = 0, linetype = "dashed") +
@@ -239,7 +241,6 @@ ggplot(df_long, aes(x = value, y = variable, fill = variable)) +
        x = "Coefficient", y = "") +
   theme_minimal() +
   theme(legend.position = "none")
-
 ```
 
 
