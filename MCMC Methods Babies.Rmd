@@ -1,0 +1,248 @@
+---
+title: "EDA and MCMC Methods for Babies Dataset"
+author: "Yatziri I. Carmona Ochoa"
+date: "2026-04-26"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+```{r}
+library(UsingR)
+library(Bolstad)
+library(ggplot2)
+library(reshape2)
+library(ggridges)
+```
+
+## EDA
+
+```{r}
+babies_clean <- babies
+
+#removing missing/incomplete data
+babies_clean[babies_clean == 999] <- NA
+babies_clean$age[babies_clean$age == 99] <- NA
+babies_clean$wt1[babies_clean$wt1 == 999] <- NA
+babies_clean$smoke[babies_clean$smoke == 9] <- NA
+babies_clean$race[babies_clean$race == 99] <- NA
+babies_clean$inc[babies_clean$inc == 99] <- NA
+babies_clean$inc[babies_clean$inc == 98] <- NA
+babies_clean$inc[babies_clean$sex == 9] <- NA
+babies_clean$inc[babies_clean$ed == 9] <- NA
+babies_clean$inc[babies_clean$ht == 99] <- NA
+
+#age distribution
+ggplot(babies_clean, aes(x = age)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of Mother's Age",
+       x = "Age (Years) ", y = "Count") +
+  theme_minimal()
+
+#smoking status distributions
+babies_clean$smoke_group <- with(babies_clean,
+  ifelse(smoke == 0, "Never",
+  ifelse(smoke == 1, "Smokes now",
+  ifelse(smoke == 2, "Until pregnancy",
+  ifelse(smoke == 3, "Former smoker", NA)))))
+
+babies_clean$smoke_group <- factor(
+  babies_clean$smoke_group,
+  levels = c("Never", "Smokes now", "Until pregnancy", "Former smoker")
+)
+
+ggplot(subset(babies_clean, !is.na(smoke_group)), aes(x = smoke_group)) +
+  geom_bar() +
+  labs(
+    title = "Smoking Status Distribution",
+    x = "Mother's Smoking Status",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+#parity distribution
+ggplot(babies_clean, aes(x = parity)) +
+  geom_bar() +
+  labs(title = "Parity Distribution",
+       x = "Number of Previous Births", y = "Count") +
+  theme_minimal()
+
+#removing height outlier
+babies_clean <- babies_clean[babies_clean$ht != 99, ]
+
+#height distribution for moms
+ggplot(babies_clean, aes(x = ht)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Mother's Height Distribution",
+       x = "Height (Inches)", y = "Count") +
+  theme_minimal()
+
+#mother's weight distribution
+ggplot(babies_clean, aes(x = wt1)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Mother's Weight Distribution",
+       x = "Weight (Pounds)", y = "Count") +
+  theme_minimal()
+
+#mother's race distribution
+babies_clean$race_group <- with(babies_clean,
+  ifelse(race %in% 0:5, "White",
+  ifelse(race == 6, "Mexican",
+  ifelse(race == 7, "Black",
+  ifelse(race == 8, "Asian",
+  ifelse(race == 9, "Mixed", NA))))))
+
+babies_clean$race_group[babies_clean$race == 10] <- NA
+
+ggplot(subset(babies_clean, !is.na(race_group)), aes(x = race_group)) +
+  geom_bar() +
+  labs(
+    title = "Race Distribution",
+    x = "Mother's Race",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+#annual income
+babies_clean$inc_group <- factor(
+  babies_clean$inc,
+  levels = 0:9,
+  labels = c(
+    "<2500",
+    "2500–4999",
+    "5000–7499",
+    "7500–9999",
+    "10000–12499",
+    "12500–14999",
+    "15000–17499",
+    "17500–19999",
+    "20000–22499",
+    "15000+"
+  )
+)
+
+ggplot(subset(babies_clean, !is.na(inc_group)), aes(x = inc_group)) +
+  geom_bar() +
+  labs(
+    title = "Income Distribution",
+    x = "Annual Family Income ($)",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#marital status distribution 
+babies_clean$marital_group <- factor(
+  babies_clean$marital,
+  levels = c(1,2,3,4,5),
+  labels = c(
+    "Married",
+    "Separated",
+    "Divorced",
+    "Widowed",
+    "Never married"
+  )
+)
+
+ggplot(subset(babies_clean, !is.na(marital_group)), aes(x = marital_group)) +
+  geom_bar() +
+  labs(
+    title = "Marital Status Distribution",
+    x = "Marital Status",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+
+#mother's education distribution
+babies_clean$edu_group <- with(babies_clean,
+  ifelse(ed == 0, "Less than 8th grade",
+  ifelse(ed == 1, "8th–12th (no diploma)",
+  ifelse(ed == 2, "HS graduate",
+  ifelse(ed == 3, "HS + trade",
+  ifelse(ed == 4, "Some college",
+  ifelse(ed == 5, "College graduate",
+  ifelse(ed %in% c(6,7), "Trade school", NA))))))))
+
+babies_clean$edu_group <- factor(
+  babies_clean$edu_group,
+  levels = c(
+    "Less than 8th grade",
+    "8th–12th (no diploma)",
+    "HS graduate",
+    "HS + trade",
+    "Some college",
+    "College graduate",
+    "Trade school"
+  )
+)
+
+ggplot(subset(babies_clean, !is.na(edu_group)), aes(x = edu_group)) +
+  geom_bar() +
+  labs(
+    title = "Education Level Distribution",
+    x = "Education Level",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## MCMC for Bayesian Linear Regression
+
+```{r}
+library(MCMCpack)
+
+#linear regression
+model <- MCMCregress(
+  wt ~ gestation + age + ht + wt1 + smoke + race + parity,
+  data = babies,
+  burnin = 2000,
+  mcmc = 10000,
+  thin = 5
+)
+
+summary(model)
+
+#diagnostics
+traceplot(model)
+#posterior distributions
+densplot(model)
+
+```
+
+```{r}
+#ridgeline plot
+m <- as.matrix(model)
+
+df <- data.frame(
+  gestation = m[, "gestation"],
+  age = m[, "age"],
+  ht = m[, "ht"],
+  wt1 = m[, "wt1"],
+  smoke = m[, "smoke"],
+  race = m[, "race"],
+  parity = m[, "parity"]
+)
+
+df_long <- melt(df)
+
+ggplot(df_long, aes(x = value, y = variable, fill = variable)) +
+  geom_density_ridges(alpha = 0.6) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(title = "Posterior Distributions",
+       x = "Coefficient", y = "") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+```
+
+
+
+
+
