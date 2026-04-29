@@ -31,7 +31,7 @@ We fit a multiple linear regression of birth weight (oz) on six maternal predict
 - wt1 (lbs): heavier pre-pregnancy mothers tend to have heavier babies
 - number: ordinal measure of cigarettes smoked per day (0=never, ..., 8=60+)
 - parity: 0 = first birth, 1 = previous birth(s)
-- age (years): maternal age at delivery
+- age (years): maternal age at delivery\
 
 ```
 wt ~ gestation + ht + wt1 + number + parity + age
