@@ -19,7 +19,7 @@ babies_df <- babies
 ```{r}
 # Remove all observations with missing or unknown values
 babies_df = subset(babies_df, wt != 999 & parity != 99 & age != 99 &
-                     ht != 99 & wt1 != 999 & smoke != 9 & number != 99 & number != 98)
+                     ht != 99 & wt1 != 999 & smoke != 9 & number!=9 & number != 99 & number != 98)
 ```
 
 ## Model
