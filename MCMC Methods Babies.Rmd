@@ -19,7 +19,6 @@ library(ggplot2)
 library(reshape2)
 library(ggridges)
 ```
-
 ## EDA
 
 ```{r}
@@ -33,9 +32,10 @@ babies_clean$smoke[babies_clean$smoke == 9] <- NA
 babies_clean$race[babies_clean$race == 99] <- NA
 babies_clean$inc[babies_clean$inc == 99] <- NA
 babies_clean$inc[babies_clean$inc == 98] <- NA
-babies_clean$inc[babies_clean$sex == 9] <- NA
-babies_clean$inc[babies_clean$ed == 9] <- NA
-babies_clean$inc[babies_clean$ht == 99] <- NA
+babies_clean$sex[babies_clean$sex == 9] <- NA
+babies_clean$ed[babies_clean$ed == 9] <- NA
+babies_clean$ht[babies_clean$ht == 99] <- NA
+babies_clean$parity[babies_clean$parity == 99] <- NA
 
 #age distribution
 ggplot(babies_clean, aes(x = age)) +
@@ -44,7 +44,7 @@ ggplot(babies_clean, aes(x = age)) +
        x = "Age (Years) ", y = "Count") +
   theme_minimal()
 
-#smoking status distributions
+#smoking status distribution
 babies_clean$smoke_group <- with(babies_clean,
   ifelse(smoke == 0, "Never",
   ifelse(smoke == 1, "Smokes now",
@@ -71,9 +71,6 @@ ggplot(babies_clean, aes(x = parity)) +
   labs(title = "Parity Distribution",
        x = "Number of Previous Births", y = "Count") +
   theme_minimal()
-
-#removing height outlier
-babies_clean <- babies_clean[babies_clean$ht != 99, ]
 
 #height distribution for moms
 ggplot(babies_clean, aes(x = ht)) +
@@ -191,6 +188,43 @@ ggplot(subset(babies_clean, !is.na(edu_group)), aes(x = edu_group)) +
   ) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#gestation
+ggplot(babies_clean, aes(x = gestation)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Distribution of Gestation Length",
+    x = "Gestation (Days)",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+#number of cigarettes smoked
+babies_clean$cigs_cat <- factor(
+  babies_clean$number,
+  levels = 0:8,
+  labels = c(
+    "0 (Never)",
+    "1–4",
+    "5–9",
+    "10–14",
+    "15–19",
+    "20–29",
+    "30–39",
+    "40–60",
+    "60+"
+  )
+)
+
+ggplot(subset(babies_clean, !is.na(cigs_cat)), aes(x = cigs_cat)) +
+  geom_bar() +
+  labs(
+    title = "Distribution of Cigarettes Smoked per Day",
+    x = "Cigarettes per Day",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 ## MCMC for Bayesian Linear Regression
@@ -198,52 +232,121 @@ ggplot(subset(babies_clean, !is.na(edu_group)), aes(x = edu_group)) +
 ```{r}
 library(MCMCpack)
 
-babies_clean$cigs_cat <- babies_clean$number
+babies_df2 <- babies
 
-#remove unknowns
-babies_clean$cigs_cat[babies_clean$cigs_cat %in% c(9, 98, 99)] <- NA
+#clean dataset
+babies_clean_2 <- subset(babies_df2,
+  wt != 999 &
+  parity != 99 &
+  age != 99 &
+  ht != 99 &
+  wt1 != 999 &
+  smoke != 9 &
+  !(number %in% c(9, 98, 99))
+)
 
-#convert to factor
-babies_clean$cigs_cat <- factor(babies_clean$cigs_cat)
+#create categorical smoking variable
+babies_clean_2$cigs_cat <- factor(
+  babies_clean_2$number,
+  levels = 0:8,
+  labels = c(
+    "0 (Never)",
+    "1–4",
+    "5–9",
+    "10–14",
+    "15–19",
+    "20–29",
+    "30–39",
+    "40–60",
+    "60+"
+  )
+)
 
-#linear regression
 model <- MCMCregress(
   wt ~ gestation + ht + wt1 + number + parity + age,
-  data = babies_clean,
+  data = babies_clean_2,
   burnin = 2000,
   mcmc = 10000,
   thin = 5
 )
-
 summary(model)
-
-#diagnostics
-traceplot(model)
-#posterior distributions
-densplot(model)
-
 ```
 
 ```{r}
 #ridgeline plot
 m <- as.matrix(model)
-
-#convert all of coefficients to dataframe
 df <- as.data.frame(m)
+
+#remove variance parameter
 df <- df[, !colnames(df) %in% "sigma2"]
+
+#convert to long format
 df_long <- melt(df)
 
 #plot
 ggplot(df_long, aes(x = value, y = variable, fill = variable)) +
   geom_density_ridges(alpha = 0.6) +
   geom_vline(xintercept = 0, linetype = "dashed") +
-  labs(title = "Posterior Distributions",
-       x = "Coefficient", y = "") +
+  labs(
+    title = "Posterior Distributions (MCMC)",
+    x = "Coefficient",
+    y = ""
+  ) +
   theme_minimal() +
   theme(legend.position = "none")
 ```
 
+## MCMC Informed Prior (Strong Means, Diffuse Variance)
+
+```{r}
+b0 <- c(
+  0.00,   # intercept
+  0.70,   # gestation
+  0.84,   # ht
+  0.12,   # wt1
+  -1.80,  # number (cigs)
+  3.5,   # parity
+  0.00    # age
+)
+
+#precision matrix, required by MCMC pack
+B0 <- diag(length(b0)) * (1 / 10000)
+
+model_inf <- MCMCregress(
+  wt ~ gestation + ht + wt1 + number + parity + age,
+  data = babies_clean_2,
+  b0 = b0,
+  B0 = B0,
+  burnin = 2000,
+  mcmc = 10000,
+  thin = 5
+)
+
+summary(model_inf)
+densplot(model_inf)
+```
 
 
+```{r}
+#ridgeline plot
+m2 <- as.matrix(model_inf)
+df2 <- as.data.frame(m2)
 
+#remove variance parameter
+df2 <- df2[, !colnames(df2) %in% "sigma2"]
 
+#convert to long format
+df_long2 <- melt(df2)
+
+#plot
+ggplot(df_long2, aes(x = value, y = variable, fill = variable)) +
+  geom_density_ridges(alpha = 0.6) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(
+    title = "Posterior Distributions (MCMC)",
+    x = "Coefficient",
+    y = ""
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
