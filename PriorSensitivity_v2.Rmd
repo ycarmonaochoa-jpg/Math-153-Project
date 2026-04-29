@@ -18,10 +18,8 @@ babies_df <- babies
 
 ```{r}
 # Remove all observations with missing or unknown values
-babies_df = subset(babies_df, wt != 999 & parity != 99 & race != 99 & age != 99 &
-                     ed != 9 & ht != 99 & wt1 != 999 & drace != 99 & dage != 99 &
-                     ded != 9 & dht != 99 & dwt != 999 & inc != 99 & smoke != 9 &
-                     time != 99 & time != 98 & number != 99 & number != 98)
+babies_df = subset(babies_df, wt != 999 & parity != 99 & age != 99 &
+                     ht != 99 & wt1 != 999 & smoke != 9 & number != 99 & number != 98)
 ```
 
 ## Model
@@ -65,33 +63,49 @@ of each effect, do our posteriors change?
 
 Prior mean derivations from literature review:
 - Intercept: set to 0 (absorbed into diffuse variance)
-- gestation: Oken et al. (2003) report median birth weight increments of
-  ~140g per gestational week from a US national reference sample, independent
+
+- gestation: Previous studies report median birth weight increments of
+  ~140g per gestational week from a US national reference sample data, independent
   of the CHDS. Converting to oz/day: 140g / 28.35g/oz / 7 days ~= 0.70 oz/day.
-  We use 0.7. Source: Oken et al. (2003). BMC Pediatrics, 3:6. doi:10.1186/1471-2431-3-6
-- ht: consistent positive association across studies; a 5cm increase in
-  maternal height is associated with increases in newborn size (Polzlberger
-  et al., 2016; Thame et al., 2004). We encode a weak positive prior of
-  1.0 oz/inch.
-- wt1: positive association well-established (Polzlberger et al., 2016).
-  We encode a small positive prior of 0.05 oz/lb.
-- number: OLS estimates from multiple studies find each additional cigarette
-  reduces birth weight by 8-15g (Juarez & Merlo, 2013). The `number`
-  variable is ordinal with each step representing ~5 more cigarettes.
-  Converting: 10g x 5 / 28.35 ~= -1.76 oz per category step. We use -1.5.
-  Source: Juarez S, Merlo J (2013); Perreira et al. (2017)
-- parity: first births are on average 115-138g lighter than subsequent
-  births (Wilcox et al., 1996; Bohn et al., 2021). Converting: 115g /
-  28.35 ~= 4 oz. Since parity = 1 means prior birth (i.e. NOT first birth),
-  the coefficient should be positive. We use 4.0.
-  Source: Bohn et al. (2021); Magnus et al. (1994)
-- age: modest positive effect up to early 30s (Stein et al., 1989).
-  We encode a small positive prior of 0.1 oz/year.
-  Source: Stein Z et al. (1989)
+  Source: Oken et al. (2003). BMC Pediatrics, 3:6. doi:10.1186/1471-2431-3-6
+  
+- ht: consistent positive association across studies for height of mother and
+  birthweight of child ; a 5cm increase in maternal height is associated with 
+  increases in newborn size about 47g. Thus, we encode a positive prior of 
+  .84 oz/inch based on prior studies data.
+  Source: Thame et al. (2004)
+  
+- wt1: positive association of weight of mother and birthweight. A prior study 
+  reports about increase in birthweight of 37g/5kg of mothers weight.
+  Thus, we encode a positive prior of 0.12 oz/lb.
+  Source: Thame et al. (2004)
+  
+- number: Some researchers find light smokers (1-9 cigs/day) deliver infants 162g 
+  lighter and heavy smokers 226g lighter than non-smoking mothers. The number variable 
+  is ordinal (0=never, ..., 9=60+ cigs/day); the light smoker range spans roughly 
+  steps 2-3, giving ~65g per step, and the heavy smoker range gives ~40g per step. 
+  Converting the light-smoker estimate: 65g / 28.35 ~= -2.29 oz/step; heavy-smoker 
+  estimate: 40g / 28.35 ~= -1.41 oz/step. We use -1.8 oz/step as the prior mean, 
+  reflecting the midpoint weighted toward the more conservatively estimated 
+  heavy-smoker slope.
+  Source: Juarez S, Merlo J (2013). doi:10.1101/2020.10.30.20222844
+
+- parity: The babies dataset codes parity as binary: 0 = first birth, 1 = prior 
+  birth(s). So the relevant comparison is first-born vs any subsequent birth. 
+  From a previous study we know that  Second-born are ~130g heavier than
+  first-born and Third-or-later arre ~180g heavier than first-born. Thus if we 
+  assume a rough 60/40 split between second and third-or-later births among 
+  non-first births tgen0.6 × 130 + 0.4 × 180 = 78 + 72 = 150g increase for 
+  giving prior birth thus 150g / 28.35 = ~5.3 oz
+  Source: Bohn et al. (2021)
+  
+- age: Prior studies shows that modest positive effect of age up to early 30s on 
+  birthweight and then reverse effects of ages. Thus we encode a zero prior. 
+  Source: Swamy et al. (2012) 
 
 **Prior 4 -- Informative means, tighter variance on weaker predictors**
-Same research-backed means as Prior 3, but variance is tightened on all of them
-(variance = 10 rather than 1e4).
+  Same research-backed means as Prior 3, but variance is tightened on all of them
+  (variance = 10 rather than 1e4).
 
 ```{r}
 # --- Prior means ---
@@ -103,11 +117,11 @@ b0_zero = rep(0, 7)
 # Order: intercept, gestation, ht, wt1, number, parity, age
 b0_informed = c(0,     # intercept: no prior
                 0.7,   # gestation: ~0.7 oz/day (143g/week converted)
-                1.0,   # ht: positive, ~1 oz/inch
-                0.05,  # wt1: small positive, ~0.05 oz/lb
-                -1.5,  # number: negative, ~-1.5 oz per category step
-                4.0,   # parity: positive, ~4 oz for non-first birth
-                0.1)   # age: small positive, ~0.1 oz/year
+                .84,   # ht: positive, ~1 oz/inch
+                .12,  # wt1: small positive, ~0.05 oz/lb
+                -1.8,  # number: negative, ~-1.5 oz per category step
+                5.3,   # parity: positive, ~4 oz for non-first birth
+                0)   # age: small positive, ~0.1 oz/year
 
 # --- Prior variances ---
 
@@ -115,20 +129,20 @@ b0_informed = c(0,     # intercept: no prior
 V0_diffuse = 1e4 * diag(rep(1, 7))
 
 # Prior 2: Moderate zero-mean
-V0_moderate = diag(c(10, 10, 10, 10, 10, 10, 10))
+V0_moderate = diag(c(1e4, 10, 10, 10, 10, 10, 10))
 
 # Prior 3: Diffuse variance, informed means
 V0_diffuse_informed = 1e4 * diag(rep(1, 7))
 
 # Prior 4: Informed means, tighter variance on all of them
 # Order: intercept, gestation, ht, wt1, number, parity, age
-V0_tight_weak = diag(c(10,   # intercept: diffuse
-                        10,   # gestation: diffuse (strong signal)
-                        10,   # ht: diffuse
-                        10,   # wt1: diffuse
-                        10,   # number: diffuse (strong signal)
-                        10,     # parity: tighter (effect well-bounded ~4 oz)
-                        10))    # age: tighter (effect small and well-bounded)
+V0_tight_weak = diag(c(1e4,   # intercept: diffuse
+                        10,   # gestation: diffuse
+                        10,   # ht: tight
+                        10,   # wt1: tight
+                        10,   # number: tight
+                        10,     # parity: tight
+                        10))    # age: diffuse as not much information
 ```
 
 ```{r}
