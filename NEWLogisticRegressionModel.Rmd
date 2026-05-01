@@ -1,0 +1,126 @@
+---
+title: "Math153LogisticRegressionModel"
+author: "Alessandra"
+date: "2026-04-22"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(UsingR)
+library(ggplot2)
+library(Bolstad)
+library(dplyr)
+library(Bolstad2)
+library(rstanarm)
+library(bayesplot)
+library(broom)
+library(tidyverse)
+theme_set(theme_classic())
+library(tidyverse)
+library(caret)
+library(GGally)
+library(ggplot2)
+library(corrplot)
+library(bayesplot)
+theme_set(bayesplot::theme_default(base_family = "sans"))
+library(rstanarm)
+options(mc.cores = 1)
+library(loo)
+library(projpred)
+SEED=14124869
+
+```
+
+```{r}
+#loading full dataset
+babies_df <- babies
+```
+
+Cleaning Dataset
+```{r}
+babies_df_somewhat_reduced = subset(babies_df, wt != 999 & ht != 99 & parity != 99 & age != 99 & smoke!=9 & wt1 != 999 & number != 99 & number != 98 & number!=9)
+```
+
+Creating the binary variable
+```{r}
+babies_df_w_bin <- babies_df_somewhat_reduced %>%
+  mutate(uw = case_when(
+    wt < 88.1849 ~ 1,
+    wt > 88.1849 ~ 0
+  ))
+```
+
+
+
+gestation, ht, wt1, number, parity, age parameters
+
+```{r}
+#with the gestation, ht, wt1, number, parity, age parameters
+#making a matrix of the gestation, ht, wt1, number, parity, age parameters
+
+babies_reduced4 <- babies_df_w_bin %>%
+  dplyr::select(uw, wt, gestation, ht, wt1, number, parity, age)
+```
+
+```{r}
+babies_reduced4_matrix <- data.matrix(babies_reduced4)
+```
+
+**One Metropolis Hastings sample**
+```{r}
+log <- BayesLogistic(babies_reduced4_matrix[, 1], babies_reduced4_matrix[, c(3,4,5,6,7,8)])
+```
+
+
+```{r}
+beta <- c("gestation", "mother's height", "mother's weight", "number", "parity", "age")
+beta_means <- c(-0.032133756, -0.063594586, -0.006912550, 0.243027690, 0.042408552, 0.009020142)
+beta_lower_ci <- c(-0.036757896, -0.120308926, -0.014037164, 0.192669370, -0.005946375, -0.009043999)
+beta_upper_ci <- c(-0.0253790046, -0.0239433079, 0.0002454796, 0.2965387412, 0.1222946333, 0.0238970350)
+
+beta <- data.frame(beta, beta_means, beta_lower_ci, beta_upper_ci)
+```
+
+
+```{r}
+beta %>%
+  ggplot(aes(beta_means, beta)) + 
+  geom_point() + 
+  geom_errorbar(aes(xmin = beta_lower_ci, xmax = beta_upper_ci))+
+  geom_vline(aes(xintercept=0), lty=2)+
+  xlab("Beta") +
+  ylab("")
+```
+
+Using a new function for simplicity!
+```{r}
+#using weak prior
+t_prior <- student_t(df = 7, location = 0, scale = 2.5)
+
+#
+post1 <- stan_glm(uw ~ gestation + ht + wt1 + number + parity + age, data = babies_reduced4,
+                 family = binomial(link = "logit"), 
+                 prior = t_prior, prior_intercept = t_prior, QR=TRUE,
+                 seed = SEED, refresh=0)
+```
+
+```{r}
+post1_mat <- as.matrix(post1)
+```
+
+```{r}
+mcmc_areas(post1_mat, 
+           pars = c("parity", "number", "wt1", "ht", "gestation", "age"), 
+           prob = 0.95)
+```
+
+
+
+```{r}
+round(coef(post1), 2)
+round(posterior_interval(post1, prob = 0.95), 5)
+```
