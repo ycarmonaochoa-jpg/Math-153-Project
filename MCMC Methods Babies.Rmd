@@ -18,7 +18,9 @@ library(Bolstad)
 library(ggplot2)
 library(reshape2)
 library(ggridges)
+library(dplyr)
 ```
+
 ## EDA
 
 ```{r}
@@ -227,7 +229,53 @@ ggplot(subset(babies_clean, !is.na(cigs_cat)), aes(x = cigs_cat)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-## MCMC for Bayesian Linear Regression
+#EDA Proportions, Counts, Range Etc
+
+```{r}
+#age
+range(babies_clean$age, na.rm = TRUE)
+
+#smoke status
+smoke_summary <- babies_clean %>%
+  count(smoke_group) %>%
+  mutate(prop = n / sum(n))
+smoke_summary
+
+#race
+race_summary <- babies_clean %>%
+  count(race_group) %>%
+  mutate(prop = n / sum(n))
+race_summary
+
+#height
+range(babies_clean$ht, na.rm = TRUE)
+
+#weight
+range(babies_clean$wt1, na.rm = TRUE)
+
+#parity
+range(babies_clean$parity, na.rm = TRUE)
+
+#gestation
+range(babies_clean$gestation, na.rm = TRUE)
+
+#cigs
+cigs_summary <- babies_clean %>%
+  filter(!is.na(cigs_cat)) %>%
+  count(cigs_cat) %>%
+  mutate(prop = n / sum(n))
+cigs_summary
+
+
+#education
+edu_summary <- babies_clean %>%
+  filter(!is.na(edu_group)) %>%
+  count(edu_group) %>%
+  mutate(prop = n / sum(n))
+edu_summary
+```
+
+## MCMC for Bayesian Linear Regression Non-Informed
 
 ```{r}
 library(MCMCpack)
@@ -245,23 +293,6 @@ babies_clean_2 <- subset(babies_df2,
   !(number %in% c(9, 98, 99))
 )
 
-#create categorical smoking variable
-babies_clean_2$cigs_cat <- factor(
-  babies_clean_2$number,
-  levels = 0:8,
-  labels = c(
-    "0 (Never)",
-    "1–4",
-    "5–9",
-    "10–14",
-    "15–19",
-    "20–29",
-    "30–39",
-    "40–60",
-    "60+"
-  )
-)
-
 model <- MCMCregress(
   wt ~ gestation + ht + wt1 + number + parity + age,
   data = babies_clean_2,
@@ -270,6 +301,8 @@ model <- MCMCregress(
   thin = 5
 )
 summary(model)
+densplot(model)
+traceplot(model)
 ```
 
 ```{r}
@@ -278,6 +311,7 @@ m <- as.matrix(model)
 df <- as.data.frame(m)
 
 #remove variance parameter
+#only want to plot out coefficients
 df <- df[, !colnames(df) %in% "sigma2"]
 
 #convert to long format
@@ -324,6 +358,7 @@ model_inf <- MCMCregress(
 
 summary(model_inf)
 densplot(model_inf)
+traceplot(model_inf)
 ```
 
 
